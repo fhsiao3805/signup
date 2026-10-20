@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Office Hours Sign-Up{% endblock %}</title>
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('index') }}">Home</a>
+    {% if session.user_id %}
+      <form action="{{ url_for('logout') }}" method="post" style="display:inline">
+        <button type="submit">Log out</button>
+      </form>
+    {% else %}
+      <a href="{{ url_for('login') }}">Log in</a>
+      <a href="{{ url_for('register') }}">Register</a>
+    {% endif %}
+  </nav>
+
+  {% for message in get_flashed_messages() %}
+    <p class="flash">{{ message }}</p>
+  {% endfor %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

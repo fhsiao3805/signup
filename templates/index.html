@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Office Hours Sign-Up</h1>
+  {% if user %}
+    <p>Logged in as <strong>{{ user.username }}</strong>.</p>
+  {% else %}
+    <p>No one is logged in.</p>
+  {% endif %}
+{% endblock %}
