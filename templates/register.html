@@ -1,10 +1,86 @@
 {% extends "base.html" %}
-{% block title %}Register{% endblock %}
+{% block title %}Sign up · Office Hours{% endblock %}
+
+{% macro field(name, label, type="text", autocomplete=None, hint=None, attrs="") %}
+  <div class="field{% if errors[name] %} has-error{% endif %}">
+    <label for="{{ name }}">{{ label }}</label>
+    {% if type == "password" %}
+      <div class="password-wrap">
+        <input id="{{ name }}" name="{{ name }}" type="password"
+               {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+               {% if errors[name] %}aria-invalid="true"{% endif %}
+               aria-describedby="{{ name }}-msg" {{ attrs|safe }} required>
+        <button type="button" class="toggle-password" data-target="{{ name }}" aria-label="Show password">Show</button>
+      </div>
+    {% else %}
+      <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ values.get(name, '') }}"
+             {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+             {% if errors[name] %}aria-invalid="true"{% endif %}
+             aria-describedby="{{ name }}-msg" {{ attrs|safe }} required>
+    {% endif %}
+    {% if errors[name] %}
+      <p class="error" id="{{ name }}-msg">{{ errors[name] }}</p>
+    {% elif hint %}
+      <p class="hint" id="{{ name }}-msg">{{ hint }}</p>
+    {% endif %}
+    {{ caller() if caller }}
+  </div>
+{% endmacro %}
+
 {% block content %}
-  <h1>Register</h1>
-  <form method="post">
-    <label>Username <input name="username" required autofocus></label><br>
-    <label>Password <input type="password" name="password" minlength="8" required></label><br>
-    <button type="submit">Register</button>
-  </form>
+  <section class="card auth">
+    <h1>Create your account</h1>
+    <p class="muted">Sign up to book office hours in seconds.</p>
+
+    {% if errors %}
+      <div class="flash flash-error" role="alert">Please fix the highlighted fields below.</div>
+    {% endif %}
+
+    <form method="post" class="form" novalidate>
+      {{ field("full_name", "Full name", autocomplete="name", attrs='maxlength="100" autofocus') }}
+      {{ field("email", "Email", type="email", autocomplete="email") }}
+      {{ field("username", "Username", autocomplete="username",
+               hint="3–30 characters: letters, numbers, dots, dashes or underscores.",
+               attrs='minlength="3" maxlength="30" pattern="[A-Za-z0-9_.\\-]+"') }}
+      {% call field("password", "Password", type="password", autocomplete="new-password",
+                    hint="At least 8 characters, including a letter and a number.", attrs='minlength="8"') %}
+        <div class="strength" aria-hidden="true"><span id="strength-bar"></span></div>
+        <p class="strength-label" id="strength-label"></p>
+      {% endcall %}
+      {{ field("confirm_password", "Confirm password", type="password", autocomplete="new-password") }}
+
+      <div class="field checkbox{% if errors.terms %} has-error{% endif %}">
+        <label>
+          <input type="checkbox" name="terms" value="1" {% if request.form.get('terms') %}checked{% endif %}>
+          I agree to the office hours policies and code of conduct.
+        </label>
+        {% if errors.terms %}<p class="error">{{ errors.terms }}</p>{% endif %}
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">Create account</button>
+    </form>
+
+    <p class="switch">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+  </section>
+
+  {% include "_password_toggle.html" %}
+  <script>
+    (function () {
+      var input = document.getElementById("password");
+      var bar = document.getElementById("strength-bar");
+      var label = document.getElementById("strength-label");
+      var levels = ["", "Weak", "Fair", "Good", "Strong"];
+      input.addEventListener("input", function () {
+        var v = input.value, score = 0;
+        if (v.length >= 8) score++;
+        if (/[A-Za-z]/.test(v) && /\d/.test(v)) score++;
+        if (/[a-z]/.test(v) && /[A-Z]/.test(v)) score++;
+        if (/[^A-Za-z0-9]/.test(v) || v.length >= 14) score++;
+        if (!v) score = 0;
+        bar.style.width = (score * 25) + "%";
+        bar.dataset.level = score;
+        label.textContent = levels[score] ? "Strength: " + levels[score] : "";
+      });
+    })();
+  </script>
 {% endblock %}

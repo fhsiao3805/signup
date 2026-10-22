@@ -1,9 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Office Hours Sign-Up</h1>
-  {% if user %}
-    <p>Logged in as <strong>{{ user.username }}</strong>.</p>
-  {% else %}
-    <p>No one is logged in.</p>
-  {% endif %}
+  <section class="card hero">
+    {% if user %}
+      <h1>Welcome back, {{ user.full_name or user.username }}!</h1>
+      <p class="muted">You're signed in and ready to book office hours.</p>
+      <dl class="details">
+        <dt>Username</dt><dd>{{ user.username }}</dd>
+        {% if user.email %}<dt>Email</dt><dd>{{ user.email }}</dd>{% endif %}
+        {% if user.created_at %}<dt>Member since</dt><dd>{{ user.created_at[:10] }}</dd>{% endif %}
+      </dl>
+    {% else %}
+      <h1>Office Hours Sign-Up</h1>
+      <p class="muted">Create an account to reserve time with instructors and TAs.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="{{ url_for('register') }}">Create an account</a>
+        <a class="btn btn-ghost" href="{{ url_for('login') }}">I already have one</a>
+      </div>
+    {% endif %}
+  </section>
 {% endblock %}

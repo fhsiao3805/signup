@@ -4,25 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Office Hours Sign-Up{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <nav>
-    <a href="{{ url_for('index') }}">Home</a>
-    {% if session.user_id %}
-      <form action="{{ url_for('logout') }}" method="post" style="display:inline">
-        <button type="submit">Log out</button>
-      </form>
-    {% else %}
-      <a href="{{ url_for('login') }}">Log in</a>
-      <a href="{{ url_for('register') }}">Register</a>
-    {% endif %}
-  </nav>
-
-  {% for message in get_flashed_messages() %}
-    <p class="flash">{{ message }}</p>
-  {% endfor %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="brand-mark" aria-hidden="true">OH</span>
+      Office Hours
+    </a>
+    <nav>
+      {% if session.user_id %}
+        <form action="{{ url_for('logout') }}" method="post">
+          <button type="submit" class="btn btn-ghost">Log out</button>
+        </form>
+      {% else %}
+        <a class="btn btn-ghost" href="{{ url_for('login') }}">Log in</a>
+        <a class="btn btn-primary" href="{{ url_for('register') }}">Sign up</a>
+      {% endif %}
+    </nav>
+  </header>
 
   <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category if category != 'message' else 'info' }}" role="status">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
   </main>
 </body>
