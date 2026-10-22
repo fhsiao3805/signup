@@ -209,6 +209,71 @@ input:focus {
 .details dt { color: var(--muted); }
 .details dd { margin: 0; font-weight: 500; }
 
+main.wide { max-width: 1040px; }
+
+.btn-sm { padding: 5px 12px; font-size: 0.85rem; }
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.week-nav h2 { margin: 0 6px; font-size: 1.1rem; }
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.day h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.day h3 span { color: var(--muted); font-weight: 500; }
+.day.today h3, .day.today h3 span { color: var(--primary); }
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 92px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.slot form { margin: 0; }
+.slot-time { font-weight: 600; font-size: 0.9rem; }
+.slot-status { font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+.slot-mine { background: var(--primary-soft); border-color: var(--primary); }
+.slot-mine .slot-status { color: var(--primary); font-weight: 600; }
+.slot-taken { background: var(--bg); }
+.slot-past { opacity: 0.55; }
+
+@media (max-width: 820px) {
+  .week { grid-template-columns: 1fr; gap: 20px; }
+  .slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .slot { min-height: 0; }
+}
+
 @media (max-width: 480px) {
   main { margin: 24px auto; }
   .card { padding: 24px 20px; }

@@ -1,21 +1,85 @@
 {% extends "base.html" %}
+{% block main_attrs %}{% if user %} class="wide"{% endif %}{% endblock %}
 {% block content %}
-  <section class="card hero">
-    {% if user %}
-      <h1>Welcome back, {{ user.full_name or user.username }}!</h1>
-      <p class="muted">You're signed in and ready to book office hours.</p>
-      <dl class="details">
-        <dt>Username</dt><dd>{{ user.username }}</dd>
-        {% if user.email %}<dt>Email</dt><dd>{{ user.email }}</dd>{% endif %}
-        {% if user.created_at %}<dt>Member since</dt><dd>{{ user.created_at[:10] }}</dd>{% endif %}
-      </dl>
-    {% else %}
+  {% if user %}
+    <section class="card">
+      <div class="sheet-head">
+        <div>
+          <h1>Office hours</h1>
+          <p class="muted">
+            Signed in as {{ user.full_name or user.username }}.
+            {% if user.is_admin %}
+              <span class="badge">Administrator</span> You can see who booked each slot.
+            {% else %}
+              Book a free half-hour slot, or cancel one of yours.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <nav class="week-nav" aria-label="Week">
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('index', week=prev_week) }}" aria-label="Previous week">&larr;</a>
+        <h2>
+          {% set friday = week[-1].date %}
+          {{ monday.strftime('%b') }} {{ monday.day }} – {% if friday.month != monday.month %}{{ friday.strftime('%b') }} {% endif %}{{ friday.day }}, {{ friday.year }}
+        </h2>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('index', week=next_week) }}" aria-label="Next week">&rarr;</a>
+        {% if monday != this_week %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('index') }}">This week</a>
+        {% endif %}
+      </nav>
+
+      <div class="week">
+        {% for day in week %}
+          <section class="day{% if day.today %} today{% endif %}">
+            <h3>{{ day.date.strftime('%A') }} <span>{{ day.date.strftime('%b') }} {{ day.date.day }}</span></h3>
+            <ul class="slots">
+              {% for slot in day.slots %}
+                {% set when = day.date.strftime('%A') ~ ' ' ~ slot.label %}
+                {% if slot.mine %}
+                  <li class="slot slot-mine{% if slot.past %} slot-past{% endif %}">
+                    <span class="slot-time">{{ slot.label }}</span>
+                    <span class="slot-status">Your booking</span>
+                    {% if not slot.past %}
+                      <form method="post" action="{{ url_for('cancel_booking', booking_id=slot.booking_id) }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" aria-label="Cancel your booking on {{ when }}">Cancel</button>
+                      </form>
+                    {% endif %}
+                  </li>
+                {% elif slot.taken %}
+                  <li class="slot slot-taken{% if slot.past %} slot-past{% endif %}">
+                    <span class="slot-time">{{ slot.label }}</span>
+                    <span class="slot-status">{{ slot.name if slot.name else "Taken" }}</span>
+                  </li>
+                {% elif slot.past %}
+                  <li class="slot slot-past">
+                    <span class="slot-time">{{ slot.label }}</span>
+                    <span class="slot-status">Closed</span>
+                  </li>
+                {% else %}
+                  <li class="slot slot-free">
+                    <span class="slot-time">{{ slot.label }}</span>
+                    <form method="post" action="{{ url_for('book') }}">
+                      <input type="hidden" name="date" value="{{ slot.date }}">
+                      <input type="hidden" name="time" value="{{ slot.time }}">
+                      <button type="submit" class="btn btn-primary btn-sm" aria-label="Book {{ when }}">Book</button>
+                    </form>
+                  </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </section>
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
+    <section class="card hero">
       <h1>Office Hours Sign-Up</h1>
       <p class="muted">Create an account to reserve time with instructors and TAs.</p>
       <div class="actions">
         <a class="btn btn-primary" href="{{ url_for('register') }}">Create an account</a>
         <a class="btn btn-ghost" href="{{ url_for('login') }}">I already have one</a>
       </div>
-    {% endif %}
-  </section>
+    </section>
+  {% endif %}
 {% endblock %}

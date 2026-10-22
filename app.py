@@ -2,6 +2,7 @@ import os
 import re
 import secrets
 import sqlite3
+from datetime import date, datetime, time, timedelta
 
 from flask import Flask, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -11,6 +12,10 @@ DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signup.db")
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
 # Deliberately loose: just enough to catch typos, not a full RFC 5322 check.
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Office hours run Monday to Friday, 2:00–4:00 pm, in half-hour slots.
+SLOT_TIMES = [time(14, 0), time(14, 30), time(15, 0), time(15, 30)]
+SLOT_LENGTH = timedelta(minutes=30)
 
 app = Flask(__name__)
 # Set SECRET_KEY in the environment so sessions survive restarts.
@@ -53,21 +58,175 @@ def init_db():
             if name not in columns:
                 db.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users (email)")
+        # The UNIQUE constraint is what stops two people booking the same slot.
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bookings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users (id),
+                slot_date TEXT NOT NULL,
+                slot_time TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE (slot_date, slot_time)
+            )
+            """
+        )
 
 
 def current_user():
     user_id = session.get("user_id")
     if user_id is None:
         return None
+    # The first person to register is the administrator.
     return get_db().execute(
-        "SELECT id, username, full_name, email, created_at FROM users WHERE id = ?",
+        "SELECT id, username, full_name, email, created_at,"
+        " id = (SELECT MIN(id) FROM users) AS is_admin"
+        " FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
 
 
+def week_start(day):
+    return day - timedelta(days=day.weekday())
+
+
+def requested_week(value):
+    """Return the Monday of the week to show, from a ?week=YYYY-MM-DD value."""
+    try:
+        return week_start(date.fromisoformat(value or ""))
+    except ValueError:
+        today = date.today()
+        # On weekends this week's slots are over, so start with the next week.
+        if today.weekday() >= 5:
+            today += timedelta(days=7)
+        return week_start(today)
+
+
+def parse_slot(day_text, time_text):
+    """Return the slot's start as a datetime, or None if it isn't a real slot."""
+    try:
+        day = date.fromisoformat(day_text or "")
+    except ValueError:
+        return None
+    if day.weekday() >= 5:
+        return None
+    for slot_time in SLOT_TIMES:
+        if slot_time.strftime("%H:%M") == time_text:
+            return datetime.combine(day, slot_time)
+    return None
+
+
+def clock(t):
+    return t.strftime("%I:%M").lstrip("0")
+
+
+def build_week(user, monday):
+    """Lay out the week's slots as the given user is allowed to see them."""
+    days = [monday + timedelta(days=i) for i in range(5)]
+    rows = get_db().execute(
+        "SELECT b.id, b.user_id, b.slot_date, b.slot_time, u.full_name, u.username"
+        " FROM bookings b JOIN users u ON u.id = b.user_id"
+        " WHERE b.slot_date BETWEEN ? AND ?",
+        (days[0].isoformat(), days[-1].isoformat()),
+    )
+    booked = {(row["slot_date"], row["slot_time"]): row for row in rows}
+    now = datetime.now()
+
+    week = []
+    for day in days:
+        slots = []
+        for slot_time in SLOT_TIMES:
+            key = slot_time.strftime("%H:%M")
+            start = datetime.combine(day, slot_time)
+            booking = booked.get((day.isoformat(), key))
+            mine = booking is not None and booking["user_id"] == user["id"]
+            slots.append({
+                "date": day.isoformat(),
+                "time": key,
+                "label": f"{clock(start)} – {clock(start + SLOT_LENGTH)} pm",
+                "past": start <= now,
+                "taken": booking is not None,
+                "mine": mine,
+                "booking_id": booking["id"] if mine else None,
+                # Only the administrator gets to know who booked a slot.
+                "name": (booking["full_name"] or booking["username"])
+                if booking is not None and user["is_admin"] else None,
+            })
+        week.append({"date": day, "today": day == now.date(), "slots": slots})
+    return week
+
+
 @app.route("/")
 def index():
-    return render_template("index.html", user=current_user())
+    user = current_user()
+    if user is None:
+        return render_template("index.html", user=None)
+
+    monday = requested_week(request.args.get("week"))
+    return render_template(
+        "index.html",
+        user=user,
+        week=build_week(user, monday),
+        monday=monday,
+        prev_week=(monday - timedelta(days=7)).isoformat(),
+        next_week=(monday + timedelta(days=7)).isoformat(),
+        this_week=requested_week(None),
+    )
+
+
+@app.route("/book", methods=["POST"])
+def book():
+    user = current_user()
+    if user is None:
+        return redirect(url_for("login"))
+
+    start = parse_slot(request.form.get("date"), request.form.get("time"))
+    if start is None:
+        flash("That isn't an office hours slot.", "error")
+        return redirect(url_for("index"))
+
+    if start <= datetime.now():
+        flash("That slot has already started.", "error")
+    else:
+        try:
+            db = get_db()
+            db.execute(
+                "INSERT INTO bookings (user_id, slot_date, slot_time, created_at)"
+                " VALUES (?, ?, ?, datetime('now'))",
+                (user["id"], start.date().isoformat(), start.strftime("%H:%M")),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            flash("Sorry, that slot has just been taken.", "error")
+        else:
+            flash(f"Booked {start:%A, %B} {start.day} at {clock(start)} pm.", "success")
+    return redirect(url_for("index", week=week_start(start.date()).isoformat()))
+
+
+@app.route("/bookings/<int:booking_id>/cancel", methods=["POST"])
+def cancel_booking(booking_id):
+    user = current_user()
+    if user is None:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    # Matching on user_id means people can only cancel their own bookings.
+    booking = db.execute(
+        "SELECT slot_date, slot_time FROM bookings WHERE id = ? AND user_id = ?",
+        (booking_id, user["id"]),
+    ).fetchone()
+    if booking is None:
+        flash("That booking doesn't exist.", "error")
+        return redirect(url_for("index"))
+
+    start = parse_slot(booking["slot_date"], booking["slot_time"])
+    if start <= datetime.now():
+        flash("That slot has already started, so it can't be cancelled.", "error")
+    else:
+        db.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
+        db.commit()
+        flash(f"Cancelled your booking on {start:%A, %B} {start.day} at {clock(start)} pm.", "info")
+    return redirect(url_for("index", week=week_start(start.date()).isoformat()))
 
 
 def validate_registration(form):
